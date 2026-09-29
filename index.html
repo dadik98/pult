@@ -1,0 +1,611 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0f1318">
+<!--ARTIFACT-START-->
+<title>Пульт парка</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Раскладка: одна колонка карточек ботов, липкая шапка со сводкой по счёту, липкая полоса «изменения → отправить» внизу. Тёмная консоль трейдера, светлая тема — как бумажный журнал. */
+:root{
+  --bg:#0f1318; --panel:#161c24; --panel2:#1d252f; --line:#2a343f; --fg:#e6e9ee; --mute:#8b97a6;
+  --accent:#d4a53a; --accent-fg:#1a1406;
+  --on:#3fbf7f; --off:#e0a83a; --flat:#e5544b; --info:#5aa9e6;
+  --on-bg:rgba(63,191,127,.14); --off-bg:rgba(224,168,58,.16); --flat-bg:rgba(229,84,75,.16);
+  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  color-scheme:dark;
+}
+@media (prefers-color-scheme: light){ :root:not([data-theme="dark"]){
+  --bg:#f3f1ec; --panel:#ffffff; --panel2:#f6f4ef; --line:#d9d4c8; --fg:#1d2126; --mute:#6b7380;
+  --accent:#a8781a; --accent-fg:#fff8e6; --on:#1f9a5e; --off:#b8801a; --flat:#c9403a; --info:#2c7fc4;
+  --on-bg:rgba(31,154,94,.12); --off-bg:rgba(184,128,26,.14); --flat-bg:rgba(201,64,58,.12); color-scheme:light; } }
+:root[data-theme="light"]{
+  --bg:#f3f1ec; --panel:#ffffff; --panel2:#f6f4ef; --line:#d9d4c8; --fg:#1d2126; --mute:#6b7380;
+  --accent:#a8781a; --accent-fg:#fff8e6; --on:#1f9a5e; --off:#b8801a; --flat:#c9403a; --info:#2c7fc4;
+  --on-bg:rgba(31,154,94,.12); --off-bg:rgba(184,128,26,.14); --flat-bg:rgba(201,64,58,.12); color-scheme:light; }
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--fg)}
+body{font:14px/1.4 var(--sans);padding-block:0 96px;padding-inline:0;-webkit-text-size-adjust:100%}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;border:1px solid var(--line);background:var(--panel2);border-radius:8px;padding:8px 12px}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+input,select,textarea{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:7px 9px}
+input[type=number]{width:6.5em;font-family:var(--mono);font-variant-numeric:tabular-nums}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.pos{color:var(--on)} .neg{color:var(--flat)} .mute{color:var(--mute)}
+.wrap{max-width:760px;margin:0 auto;padding-inline:16px}
+header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line)}
+header.top .wrap{display:flex;align-items:center;gap:10px;padding-block:10px}
+header h1{font-size:17px;margin:0;font-weight:600;letter-spacing:.01em;flex:1;min-width:0}
+header h1 small{display:block;font-size:11px;font-weight:400;color:var(--mute);letter-spacing:.04em;text-transform:uppercase}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--mute);display:inline-block;flex:none}
+.dot.ok{background:var(--on)} .dot.bad{background:var(--flat)} .dot.busy{background:var(--off);animation:pulse 1s infinite}
+@keyframes pulse{50%{opacity:.3}}
+@media (prefers-reduced-motion: reduce){.dot.busy{animation:none}}
+.ib{padding:8px 10px;border-radius:8px;line-height:1}
+nav.tabs{display:flex;gap:4px;padding-block:8px 0}
+nav.tabs button{flex:1;border-radius:8px 8px 0 0;border-bottom:none;background:transparent;color:var(--mute);padding:9px 6px}
+nav.tabs button[aria-selected=true]{background:var(--panel);color:var(--fg);border-color:var(--line)}
+main .wrap{padding-block:14px}
+section.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:12px}
+section.card h2{font-size:15px;margin:0;font-weight:600;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+section.card h2 .sub{font-size:12px;color:var(--mute);font-weight:400}
+.pill{font-size:11px;padding:2px 8px;border-radius:999px;border:1px solid var(--line);color:var(--mute);white-space:nowrap}
+.pill.on{color:var(--on);background:var(--on-bg);border-color:transparent}
+.pill.off{color:var(--off);background:var(--off-bg);border-color:transparent}
+.pill.flat{color:var(--flat);background:var(--flat-bg);border-color:transparent}
+.pill.chg{color:var(--accent);border-color:var(--accent)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+.seg button{border:none;border-radius:0;background:transparent;color:var(--mute);padding:8px 14px;min-width:60px}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button.on[aria-pressed=true]{background:var(--on-bg);color:var(--on);font-weight:600}
+.seg button.off[aria-pressed=true]{background:var(--off-bg);color:var(--off);font-weight:600}
+.seg button.flat[aria-pressed=true]{background:var(--flat-bg);color:var(--flat);font-weight:600}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px}
+.row.head{margin-top:0}
+.fld{display:flex;align-items:center;gap:6px}
+.fld label{font-size:12px;color:var(--mute);white-space:nowrap}
+.stp{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.stp button{border:none;border-radius:0;background:var(--panel2);padding:7px 11px;font-family:var(--mono)}
+.stp input{border:none;border-radius:0;width:5.2em;text-align:center;background:var(--bg)}
+.stp input::-webkit-outer-spin-button,.stp input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.stp input[type=number]{-moz-appearance:textfield;appearance:textfield}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(78px,1fr));gap:6px 10px;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)}
+.stats div{min-width:0}
+.stats b{display:block;font-size:10.5px;color:var(--mute);font-weight:500;letter-spacing:.04em;text-transform:uppercase}
+.stats span{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:14px}
+.line{font-size:12.5px;color:var(--mute);margin-top:8px;word-break:break-word}
+.line strong{color:var(--fg);font-weight:500}
+.age{font-size:11px;color:var(--mute)} .age.old{color:var(--flat)}
+.mods{margin-top:10px;border-top:1px dashed var(--line)}
+.mod{display:grid;grid-template-columns:1fr auto;gap:6px 10px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line)}
+.mod:last-child{border-bottom:none}
+.mod .nm{font-weight:500;min-width:0;overflow-wrap:anywhere}
+.mod .nm small{display:block;font-size:11.5px;color:var(--mute);font-weight:400;font-family:var(--mono);font-variant-numeric:tabular-nums}
+.mod .ctl{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.mod .seg button{padding:6px 9px;min-width:44px;font-size:12.5px}
+.mod .stp button{padding:6px 9px} .mod .stp input{width:4.6em;padding:6px 4px}
+.tun{grid-column:1 / -1;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.tun input{width:9em;font-family:var(--mono);font-size:12.5px;padding:5px 8px}
+.tun button{padding:5px 9px;font-size:12.5px}
+.chip{display:inline-flex;align-items:center;gap:4px;font-family:var(--mono);font-size:12px;border:1px solid var(--line);border-radius:6px;padding:2px 6px}
+.chip button{border:none;background:transparent;padding:0 2px;color:var(--mute)}
+.tgl{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:8px;padding:6px 10px;background:var(--panel2)}
+.tgl[aria-pressed=true]{border-color:var(--on);color:var(--on);background:var(--on-bg)}
+.summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:8px 12px}
+.summary div b{display:block;font-size:10.5px;color:var(--mute);font-weight:500;letter-spacing:.04em;text-transform:uppercase}
+.summary div span{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:17px}
+table.tb{width:100%;border-collapse:collapse;font-size:12.5px;font-family:var(--mono);font-variant-numeric:tabular-nums}
+table.tb th{font-family:var(--sans);font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--mute);font-weight:500;text-align:right;padding:6px 6px;border-bottom:1px solid var(--line);white-space:nowrap}
+table.tb td{text-align:right;padding:6px 6px;border-bottom:1px solid var(--line);white-space:nowrap}
+table.tb th:first-child,table.tb td:first-child{text-align:left}
+table.tb tr.tot td{font-weight:600;border-top:2px solid var(--line)}
+.scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+pre.raw{font-family:var(--mono);font-size:12px;white-space:pre;overflow-x:auto;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;margin:8px 0 0}
+textarea.raw{width:100%;min-height:340px;font-family:var(--mono);font-size:12.5px;white-space:pre;overflow:auto;line-height:1.45}
+.bar{position:fixed;left:0;right:0;bottom:0;z-index:6;background:var(--panel);border-top:1px solid var(--line);padding:10px 0 calc(10px + env(safe-area-inset-bottom,0px))}
+.bar .wrap{display:flex;gap:10px;align-items:center}
+.bar .n{flex:1;min-width:0}
+.bar .n small{display:block;color:var(--mute);font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.btn-acc{background:var(--accent);color:var(--accent-fg);border-color:transparent;font-weight:600}
+.btn-flat{background:var(--flat-bg);color:var(--flat);border-color:transparent;font-weight:600}
+.btn-off{background:var(--off-bg);color:var(--off);border-color:transparent;font-weight:600}
+.btn-on{background:var(--on-bg);color:var(--on);border-color:transparent;font-weight:600}
+.notice{border-left:3px solid var(--info);background:var(--panel2);padding:8px 12px;border-radius:0 8px 8px 0;font-size:13px;margin-bottom:12px}
+.notice.warn{border-color:var(--off)} .notice.err{border-color:var(--flat)}
+.modal{position:fixed;inset:0;z-index:20;background:rgba(0,0,0,.55);display:flex;align-items:flex-end;justify-content:center}
+.modal .box{background:var(--panel);border:1px solid var(--line);border-radius:14px 14px 0 0;padding:16px;width:100%;max-width:760px;max-height:85vh;overflow:auto;padding-bottom:calc(16px + env(safe-area-inset-bottom,0px))}
+@media (min-width:640px){.modal{align-items:center}.modal .box{border-radius:14px;padding-bottom:16px}}
+.modal h3{margin:0 0 10px;font-size:16px}
+.modal ul{margin:6px 0 12px;padding-left:18px;font-family:var(--mono);font-size:12.5px}
+.modal .acts{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap}
+.set label{display:block;font-size:12px;color:var(--mute);margin:12px 0 4px}
+.set input[type=text],.set input[type=password],.set input[type=url]{width:100%;font-family:var(--mono);font-size:13px}
+.set .hint{font-size:12px;color:var(--mute);margin-top:4px}
+.set .hint a{color:var(--info)}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom,0px));background:var(--panel2);border:1px solid var(--line);color:var(--fg);padding:9px 14px;border-radius:9px;z-index:30;font-size:13px;max-width:92vw}
+.demo{background:var(--off-bg);color:var(--off);font-size:11px;padding:2px 8px;border-radius:999px}
+.small{font-size:12px;color:var(--mute)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px}
+@media (max-width:420px){.grid2{grid-template-columns:1fr}}
+</style>
+<!--HEAD-END--></head>
+<body>
+<header class="top"><div class="wrap">
+  <span id="dot" class="dot" title="связь"></span>
+  <h1>Пульт парка <small id="sub">нет связи</small></h1>
+  <button id="bRefresh" class="ib" title="Обновить" aria-label="Обновить">⟳</button>
+  <button id="bSettings" class="ib" title="Настройки" aria-label="Настройки">⚙</button>
+</div></header>
+
+<main><div class="wrap">
+  <div id="notices"></div>
+  <section class="card" id="accCard">
+    <h2>Счёт <span id="accAge" class="age"></span> <span id="demoTag" class="demo" hidden>ДЕМО — образец данных, не ваш счёт</span></h2>
+    <div class="summary" id="accSum"></div>
+  </section>
+
+  <nav class="tabs" role="tablist">
+    <button role="tab" aria-selected="true" data-tab="ctl">Пульт</button>
+    <button role="tab" aria-selected="false" data-tab="tab">Табло</button>
+    <button role="tab" aria-selected="false" data-tab="raw">Текст</button>
+  </nav>
+
+  <div id="tab-ctl">
+    <section class="card" id="allCard">
+      <h2>Все боты <span class="sub">строка ALL — общий выключатель; строка бота важнее</span></h2>
+      <div class="row" id="allRow"></div>
+      <div class="row">
+        <div class="fld"><label for="eqf">Порог эквити $</label><input type="number" id="eqf" min="0" step="10" inputmode="decimal"></div>
+        <span class="small">эквити ниже порога — все боты flat; 0 = выкл</span>
+      </div>
+      <div class="row">
+        <button id="bReport">Отчёт сейчас</button>
+        <span class="small">боты напечатают статус в журнал и обновят табло в течение 1–5 мин</span>
+      </div>
+    </section>
+    <div id="bots"></div>
+  </div>
+
+  <div id="tab-tab" hidden>
+    <section class="card">
+      <h2>Все боты счёта <span id="allAge" class="age"></span></h2>
+      <div class="scroll"><table class="tb" id="tbAll"></table></div>
+    </section>
+    <section class="card">
+      <h2>Модули парка <span id="parkAge" class="age"></span></h2>
+      <div class="line" id="parkHead"></div>
+      <div class="scroll"><table class="tb" id="tbPark"></table></div>
+    </section>
+    <section class="card">
+      <h2>Строки ботов</h2>
+      <div id="botLines"></div>
+    </section>
+  </div>
+
+  <div id="tab-raw" hidden>
+    <section class="card">
+      <h2>park.txt <span class="sub">файл команд как есть</span></h2>
+      <textarea class="raw" id="rawPark" spellcheck="false"></textarea>
+      <div class="row"><button id="bRawSend" class="btn-acc">Отправить этот текст</button><button id="bRawReset">Вернуть с сервера</button></div>
+    </section>
+    <section class="card">
+      <h2>Файлы табло</h2>
+      <div id="rawStatus"></div>
+    </section>
+  </div>
+</div></main>
+
+<div class="bar" id="bar" hidden><div class="wrap">
+  <div class="n"><strong id="barN"></strong><small id="barL"></small></div>
+  <button id="bDiscard">Отменить</button>
+  <button id="bSend" class="btn-acc">Отправить</button>
+</div></div>
+
+<div id="modalHost"></div>
+<div id="toastHost"></div>
+
+<script>
+'use strict';
+// ---------- хранилище настроек (localStorage может быть недоступен) ----------
+const LS={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}},del(k){try{localStorage.removeItem(k)}catch(e){}}};
+const cfg={gist:LS.get('zr.gist')||'',token:LS.get('zr.token')||'',statusMin:+(LS.get('zr.statusMin')||10),demo:LS.get('zr.demo')==='1'};
+
+// ---------- описание ботов и параметров ----------
+const STATE_WORDS=['on','off','flat'];
+const OPT={
+  lot:{t:'num',label:'Лот',step:0.01,min:0.01,dec:2},
+  mult:{t:'num',label:'Множитель лотов',step:0.1,min:0,dec:2},
+  floor:{t:'num',label:'Пол тишины $',step:1,min:0,dec:0,hint:'0 = выкл'},
+  ra:{t:'num',label:'Перезарядок',step:1,min:0,dec:0},
+  mode:{t:'sel',label:'Режим',opts:['base','hivol','both']},
+  step:{t:'num',label:'Ступень x',step:0.1,min:1,dec:1},
+  fri:{t:'sel',label:'Пятница',opts:['on','off_normal','off_hivol','off_all','nostep']},
+  drift:{t:'sel',label:'Дрейф дня',opts:['on','off']},
+  cal:{t:'sel',label:'Календарь релизов',opts:['on','off']},
+};
+const FAM={
+  zSGE:{title:'zSGE',sub:'страддл, открытие Шанхая',opts:['lot','floor','ra']},
+  zNY:{title:'zNY',sub:'страддл, открытие Нью-Йорка',opts:['lot','floor','ra']},
+  zFixAM:{title:'zFixAM',sub:'фиксинг LBMA утренний',opts:['lot','mode','step','fri']},
+  zFixPM:{title:'zFixPM',sub:'фиксинг LBMA дневной',opts:['lot','mode','step','fri','drift','cal']},
+  zFixEUR:{title:'zFixEUR',sub:'EURUSD, пятничная сделка',opts:['lot']},
+  zFixJPY:{title:'zFixJPY',sub:'USDJPY, gotobi',opts:['lot']},
+  DayMove:{title:'DayMove',sub:'XAUUSD, дневное движение',opts:['lot']},
+  PARK:{title:'Парк zMultiEngine',sub:'модули включаются по одному',opts:['mult'],park:true},
+};
+const isKw=w=>!!OPT[w.toLowerCase()]||TUN_NAMES.some(t=>t.toLowerCase()===w.toLowerCase());
+const TUN_NAMES=['SLxATR','TRLxATR','KxATR','HoldMin','Zthr','DayLoss','ConfQ','MinDist','Tstop','ADXmax','TrigUSD','StopUSD','TrailUSD','HoldSec'];
+const OVERLAYS={T4:'T4 усреднение',P4:'P4 пирамида',MS:'MS макро-сайзинг'};
+
+// ---------- модель park.txt ----------
+function parsePark(text){
+  const out=[];
+  for(const raw of text.split(/\r?\n/)){
+    const m=raw.match(/^\s*([A-Za-z0-9_.\-]+)\s*=\s*(.*?)\s*$/);
+    if(!m||raw.trim().startsWith('#')){out.push({raw});continue;}
+    const toks=m[2].split(/\s+/).filter(Boolean);
+    let state='';const pairs=[];
+    if(toks.length&&STATE_WORDS.includes(toks[0].toLowerCase())){state=toks[0].toLowerCase();toks.shift();}
+    for(let i=0;i<toks.length;){
+      const w=toks[i],v=toks[i+1];
+      if(v!==undefined&&!isKw(v)){pairs.push({w,v});i+=2;}
+      else{pairs.push({w,v:''});i+=1;}
+    }
+    out.push({raw,key:m[1],ku:m[1].toUpperCase(),state,pairs,plain:m[2]});
+  }
+  return out;
+}
+function serLine(e){
+  if(!e.key)return e.raw;
+  if(e.ku==='EQUITY_FLOOR'||e.ku==='REPORT')return e.key+'='+e.plain;
+  return e.key+'='+[e.state,...e.pairs.map(p=>p.v===''?p.w:p.w+' '+p.v)].filter(Boolean).join(' ');
+}
+function serPark(model){return model.map(serLine).join('\n');}
+function findE(model,ku){return model.find(e=>e.ku===ku);}
+function getOpt(e,w){const p=e.pairs.find(p=>p.w.toLowerCase()===w.toLowerCase());return p?p.v:'';}
+function setOpt(e,w,v){const p=e.pairs.find(p=>p.w.toLowerCase()===w.toLowerCase());if(v===''||v===null){if(p)e.pairs=e.pairs.filter(x=>x!==p);return;}if(p)p.v=String(v);else e.pairs.push({w,v:String(v)});}
+function ensureE(model,key,def){let e=findE(model,key.toUpperCase());if(!e){e={raw:'',key,ku:key.toUpperCase(),state:def||'on',pairs:[],plain:def||''};model.push(e);}return e;}
+function clone(x){return JSON.parse(JSON.stringify(x));}
+function tmpE(key,state){return {raw:'',key,ku:key.toUpperCase(),state:state||'on',pairs:[],plain:state||''};}
+function L(e){let x=findE(model,e.ku);if(!x){x=ensureE(model,e.key,e.state||'on');x.pairs=clone(e.pairs);x.plain=e.plain;}return x;}
+
+// ---------- разбор табло ----------
+const RE_STAT=/^(.*?)\s+сегодня\s+([+\-]?\s*[\d.]+)\s+нед\s+([+\-]?\s*[\d.]+)\s+мес\s+([+\-]?\s*[\d.]+)\s+всего\s+([+\-]?\s*[\d.]+)\s+сд\s+(\d+)\s+win\s+(\d+)%\s+PF\s+([\d.]+)\s+maxDD\s+([\d.]+)\s+плав\s+([+\-]?\s*[\d.]+)\s+посл\s+(.*)$/;
+const RE_TIME=/(\d{4})\.(\d{2})\.(\d{2}) (\d{2}):(\d{2})/;
+function parseStat(line){const m=line.trim().match(RE_STAT);if(!m)return null;
+  const n=x=>+String(x).replace(/\s/g,'');return {name:m[1].trim(),today:n(m[2]),week:n(m[3]),month:n(m[4]),net:n(m[5]),trades:+m[6],win:+m[7],pf:+m[8],dd:+m[9],flt:n(m[10]),last:m[11].trim()};}
+function serverNowMs(){ // сервер брокера = Нью-Йорк + 7 ч
+  const p=Object.fromEntries(new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',hourCycle:'h23',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'}).formatToParts(new Date()).map(x=>[x.type,x.value]));
+  return Date.UTC(+p.year,+p.month-1,+p.day,+p.hour,+p.minute,+p.second)+7*3600e3;}
+function stampMs(s){const m=(s||'').match(RE_TIME);return m?Date.UTC(+m[1],+m[2]-1,+m[3],+m[4],+m[5]):0;}
+function ageText(s){const t=stampMs(s);if(!t)return {txt:'',old:false};const m=s.match(RE_TIME);const mins=Math.max(0,Math.round((serverNowMs()-t)/60000));
+  const old=mins>3*Math.max(1,cfg.statusMin);return {txt:`табло ${m[4]}:${m[5]} серв. · ${mins<1?'только что':mins<60?mins+' мин назад':Math.floor(mins/60)+' ч '+(mins%60)+' мин назад'}`,old};}
+function parseBotStatus(text){
+  const ls=text.split(/\r?\n/).filter(l=>l.trim()!=='');const r={head:ls[0]||'',state:'',stat:null,today:'',other:[]};
+  for(const l of ls.slice(1)){const st=parseStat(l);if(st){r.stat=st;continue;}
+    if(/^состояние:/i.test(l.trim()))r.state=l.trim().replace(/^состояние:\s*/i,'');else if(/^сегодня:/i.test(l.trim()))r.today=l.trim().replace(/^сегодня:\s*/i,'');else r.other.push(l.trim());}
+  return r;}
+function parseParkStatus(text){
+  const ls=text.split(/\r?\n/).filter(l=>l.trim()!=='');const r={head:ls[0]||'',mods:[],total:null};
+  for(const l of ls.slice(1)){const m=l.match(/^(вкл|ВЫКЛ)\s+(on|OFF|FLAT)\s+лот\s+([\d.]+)\s+(.*)$/);
+    if(m){const st=parseStat(m[4]);if(st)r.mods.push({en:m[1]==='вкл',zr:m[2].toLowerCase(),lot:+m[3],...st});continue;}
+    const st=parseStat(l);if(st&&/ИТОГО/.test(st.name))r.total=st;}
+  return r;}
+function parseAllStatus(text){
+  const ls=text.split(/\r?\n/).filter(l=>l.trim()!=='');const r={head:ls[0]||'',rows:[],total:null,acc:{}};
+  const h=r.head;for(const k of ['баланс','эквити','маржа','свободно']){const m=h.match(new RegExp(k+'\\s+([\\-\\d.]+)'));if(m)r.acc[k]=+m[1];}
+  for(const l of ls.slice(1)){const st=parseStat(l);if(!st)continue;if(st.name==='ИТОГО')r.total=st;else r.rows.push(st);}
+  return r;}
+
+// ---------- GitHub Gist API ----------
+function gistId(s){s=(s||'').trim();const m=s.match(/([0-9a-f]{20,})/i);return m?m[1]:s;}
+function hdr(){const h={'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'};if(cfg.token)h['Authorization']='Bearer '+cfg.token;return h;}
+function apiErr(r){
+  if(r.status===401)return 'GitHub не принял токен (401). Проверьте токен в настройках.';
+  if(r.status===404)return 'Gist не найден (404): неверный id, или токен без права «gist».';
+  if(r.status===403||r.status===429)return 'GitHub ограничил запросы (403/429). Подождите минуту.';
+  if(r.status===422)return 'GitHub отклонил содержимое (422).';
+  return 'GitHub ответил '+r.status;}
+async function gistGet(){
+  const r=await fetch('https://api.github.com/gists/'+gistId(cfg.gist),{cache:'no-store',headers:hdr()});
+  if(!r.ok)throw new Error(apiErr(r));const j=await r.json();const files={};
+  for(const [n,f] of Object.entries(j.files||{}))files[n]=f.content||'';
+  return {files,updated:j.updated_at,url:j.html_url};}
+async function gistPatch(files){
+  const body={};for(const [n,c] of Object.entries(files))body[n]={content:c};
+  const r=await fetch('https://api.github.com/gists/'+gistId(cfg.gist),{method:'PATCH',headers:{...hdr(),'Content-Type':'application/json'},body:JSON.stringify({files:body})});
+  if(!r.ok)throw new Error(apiErr(r));return r.json();}
+
+// ---------- ДЕМО-данные (показываются, пока пульт не настроен) ----------
+const DEMO_PARK=`# ПУЛЬТ ПАРКА — одна строка на бота. Слова: on / off / flat + параметры.
+ALL=on
+zSGE=on lot 0.01 floor 10 ra 2
+zNY=on lot 0.01 floor 0 ra 2
+zFixAM=on lot 0.02 mode both step 1.5 fri off_hivol
+zFixPM=on lot 0.01 mode base step 2.0 fri on drift on cal off
+zFixEUR=on lot 0.01
+zFixJPY=on lot 0.01
+DayMove=on lot 0.01
+PARK=on mult 1.0
+PARK.zTrendDay=on lot 0.01
+PARK.zAsiaBreak=on lot 0.01
+PARK.zInsideBreak=on lot 0.02
+PARK.zScalpMR=on lot 0.01
+PARK.zFixFade=on lot 0.01
+PARK.zEmaCross=on lot 0.01
+PARK.zHourTrend=on lot 0.01
+PARK.Engine_B-FVG=on lot 0.01
+PARK.zNewsStraddle=on lot 0.15
+PARK.T4=on
+PARK.P4=off
+PARK.MS=off
+EQUITY_FLOOR=0
+REPORT=1`;
+function demoStat(n,a,b,c,d,t,w,pf,dd,f,last){const sg=(x,w)=>((x>=0?'+':'')+x.toFixed(2)).padStart(w);return `${n.padEnd(12)} сегодня ${sg(a,7)}  нед ${sg(b,7)}  мес ${sg(c,8)}  всего ${sg(d,9)}  сд ${String(t).padStart(4)}  win ${String(w).padStart(3)}%  PF ${pf.toFixed(2).padStart(5)}  maxDD ${dd.toFixed(2).padStart(7)}  плав ${sg(f,7)}  посл ${last}`;}
+function demoFiles(){
+  const ts='2026.09.29 12:40';
+  const f={};
+  f['status_ALL.txt']=`ВСЕ БОТЫ  ${ts} сервера · баланс 2518.40 · эквити 2531.15 · маржа 61.20 · свободно 2469.95\n`+
+    demoStat('PARK',12.4,38.9,141.2,1844.7,612,54,1.62,283.4,7.15,'2026.09.29 11:15')+'\n'+
+    demoStat('zFixAM',0,6.2,24.8,318.4,96,61,1.9,71.3,0,'2026.09.26 15:31')+'\n'+demoStat('zFixPM',0,-3.1,9.4,142.7,88,57,1.41,88.2,0,'2026.09.26 18:01')+'\n'+
+    demoStat('zSGE',4.6,4.6,31.2,406.1,131,49,1.55,132.6,5.6,'2026.09.29 04:41')+'\n'+demoStat('zNY',0,11.3,27.9,288.3,118,47,1.48,121.9,0,'2026.09.26 17:12')+'\n'+
+    demoStat('zFixJPY',0,2.1,8.4,8.4,3,67,2.1,4.2,0,'2026.09.25 03:15')+'\n'+demoStat('zFixEUR',0,0,5.8,5.8,2,100,0,0,0,'2026.09.26 10:00')+'\n'+
+    demoStat('DayMove',0,-6.4,12.6,72.9,41,44,1.32,48.5,0,'2026.09.26 23:00')+'\n'+demoStat('ИТОГО',17,53.6,261.3,3087.3,1091,52,1.58,331.8,12.75,'2026.09.29 11:15')+'\n';
+  f['status_PARK.txt']=`PARK  XAUUSD+  ${ts} сервера · пульт ON · множитель 1.00 · T4 вкл · P4 выкл · MS выкл\n`+
+    [['zTrendDay',0.01,3.2,9.1,28.4,341.2,88,52,1.7,61.2,0],['zAsiaBreak',0.01,0,4.4,12.1,212.6,71,48,1.44,59.9,0],['zInsideBreak',0.02,0,6.0,30.8,402.3,102,55,1.61,88.1,7.15],
+     ['zScalpMR',0.01,2.1,5.5,16.2,148.9,120,58,1.39,41.6,0],['zFixFade',0.01,0,2.2,9.9,131.4,64,53,1.52,44.3,0],['zEmaCross',0.01,7.1,7.1,19.6,201.7,59,49,1.66,57.8,0],
+     ['zHourTrend',0.01,0,1.8,11.0,167.2,52,50,1.58,49.4,0],['Engine_B-FVG',0.01,0,0,4.6,99.8,31,45,1.49,38.7,0],['zNewsStraddle',0.15,0,2.8,8.6,139.6,24,46,1.71,52.9,0]]
+    .map(m=>`вкл  on    лот ${m[1].toFixed(2)}  `+demoStat(m[0],m[2],m[3],m[4],m[5],m[6],m[7],m[8],m[9],m[10],'2026.09.29 11:15')).join('\n')+'\n'+
+    demoStat('ПАРК ИТОГО',12.4,38.9,141.2,1844.7,612,54,1.62,283.4,7.15,'2026.09.29 11:15')+'\n';
+  const bot=(n,st,line,today)=>`${n}  XAUUSD+  ${ts} сервера\nсостояние: ON · ${st}\n${line}\nсегодня: ${today}\n`;
+  f['status_zSGE.txt']=bot('zSGE','торговля вкл · лот 0.01 · пол 10 $ · перезарядок до 2 · событие 04:30',demoStat('итого',4.6,4.6,31.2,406.1,131,49,1.55,132.6,5.6,'2026.09.29 04:41'),'в позиции · следующее событие 2026.09.30 04:30 · отложек 0');
+  f['status_zNY.txt']=bot('zNY','торговля вкл · лот 0.01 · пол выкл · перезарядок до 2 · событие 16:30',demoStat('итого',0,11.3,27.9,288.3,118,47,1.48,121.9,0,'2026.09.26 17:12'),'ждём · следующее событие 2026.09.29 16:30 · отложек 0');
+  f['status_zFixAM.txt']=bot('zFixAM','лот 0.02 · режим both · ступень x1.5 · пятница: off_hivol · фиксинг 10:30 Лондона',demoStat('итого',0,6.2,24.8,318.4,96,61,1.9,71.3,0,'2026.09.26 15:31'),'ждём · фиксинг сегодня 12:30 сервера');
+  f['status_zFixPM.txt']=bot('zFixPM','лот 0.01 · режим base · ступень x2.0 · пятница: on · фиксинг 15:00 Лондона',demoStat('итого',0,-3.1,9.4,142.7,88,57,1.41,88.2,0,'2026.09.26 18:01'),'ждём · фиксинг сегодня 17:00 сервера');
+  f['status_zFixEUR.txt']=`zFixEUR  EURUSD  ${ts} сервера\nсостояние: ON · лот 0.01 · SELL в 10:00 · вход 10:00, выход 12:00 · дни: пятница\n${demoStat('итого',0,0,5.8,5.8,2,100,0,0,0,'2026.09.26 10:00')}\nсегодня: ждём вход\nвходов 2 · пропусков: дни 14, недели 0, даты 0, ATR 0, пульт 0 · выходов по времени 2, по стопу 0\n`;
+  f['status_zFixJPY.txt']=`zFixJPY  USDJPY  ${ts} сервера\nсостояние: ON · лот 0.01 · BUY в 03:00 · вход 03:00, выход 03:55 · дни: gotobi\n${demoStat('итого',0,2.1,8.4,8.4,3,67,2.1,4.2,0,'2026.09.25 03:15')}\nсегодня: отработано\n`;
+  f['status_DayMove.txt']=`DayMove  XAUUSD+  ${ts} сервера\nсостояние: ON · входы вкл · лот 0.01 · вход 15:00 выход 23:00 · порог 0.40 ATR · стоп 0.50 ATR · по ходу · только шорт\n${demoStat('итого',0,-6.4,12.6,72.9,41,44,1.32,48.5,0,'2026.09.26 23:00')}\nсегодня: ждём\n`;
+  f['park.txt']=DEMO_PARK;
+  return f;}
+
+// ---------- состояние страницы ----------
+let files={},base=[],model=[],rawText='',busy=false,timer=null;
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmt=(v,d=2)=>{const n=+v;if(isNaN(n))return '—';return (n>0?'+':'')+n.toFixed(d);};
+const cls=v=>+v>0?'pos':(+v<0?'neg':'');
+function toast(msg,ms=2600){const t=document.createElement('div');t.className='toast';t.textContent=msg;$('#toastHost').replaceChildren(t);setTimeout(()=>{if(t.parentNode)t.remove();},ms);}
+function setDot(state,txt){$('#dot').className='dot '+state;$('#sub').textContent=txt;}
+function configured(){return gistId(cfg.gist).length>=20;}
+
+async function load(showToast){
+  if(busy)return;busy=true;setDot('busy',configured()?'читаю gist…':'демо');
+  try{
+    if(!configured()){files=demoFiles();$('#demoTag').hidden=false;}
+    else{const g=await gistGet();files=g.files;$('#demoTag').hidden=true;
+      if(!('park.txt' in files))throw new Error('В gist нет файла park.txt');}
+    rawText=files['park.txt']||'';base=parsePark(rawText);
+    if(!pendingCount())model=clone(base);else mergePending();
+    render();setDot('ok',(configured()?'обновлено ':'демо · ')+new Date().toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'}));
+    if(showToast)toast('Обновлено');
+  }catch(e){setDot('bad','ошибка');notice(e.message||String(e),'err');}
+  finally{busy=false;}
+}
+function mergePending(){ // новые данные с сервера + мои неотправленные правки
+  const mine=diff(base,model);const fresh=clone(base);
+  for(const d of mine){const e=ensureE(fresh,d.key);if(d.state!==undefined)e.state=d.state;if(d.plain!==undefined)e.plain=d.plain;for(const [w,v] of Object.entries(d.opts||{}))setOpt(e,w,v);}
+  model=fresh;}
+function diff(a,b){ // список изменений по ключам
+  const out=[];const ma=new Map(a.filter(e=>e.key).map(e=>[e.ku,e]));
+  for(const e of b.filter(e=>e.key)){const o=ma.get(e.ku);
+    if(!o){out.push({key:e.key,state:e.state,plain:e.plain,opts:Object.fromEntries(e.pairs.map(p=>[p.w,p.v])),txt:`${e.key}: новая строка «${serLine(e).split('=')[1]}»`});continue;}
+    if(serLine(o)===serLine(e))continue;
+    const d={key:e.key,opts:{}};const parts=[];
+    if(o.state!==e.state){d.state=e.state;parts.push(`${o.state||'—'} → ${e.state||'—'}`);}
+    if(o.plain!==e.plain&&(e.ku==='EQUITY_FLOOR'||e.ku==='REPORT')){d.plain=e.plain;parts.push(`${o.plain} → ${e.plain}`);}
+    const words=(e.ku==='EQUITY_FLOOR'||e.ku==='REPORT')?new Set():new Set([...o.pairs.map(p=>p.w.toLowerCase()),...e.pairs.map(p=>p.w.toLowerCase())]);
+    for(const w of words){const ov=getOpt(o,w),nv=getOpt(e,w);if(ov!==nv){d.opts[w]=nv;parts.push(`${w} ${ov||'—'} → ${nv||'—'}`);}}
+    d.txt=`${e.key}: ${parts.join(', ')}`;out.push(d);}
+  return out;}
+function pendingCount(){return diff(base,model).length;}
+function notice(msg,kind){const d=document.createElement('div');d.className='notice '+(kind||'');d.textContent=msg;$('#notices').replaceChildren(d);setTimeout(()=>{if(d.parentNode)d.remove();},9000);}
+
+// ---------- отрисовка ----------
+function render(){renderAccount();renderAll();renderBots();renderBoard();renderRaw();renderBar();}
+function renderAccount(){
+  const a=parseAllStatus(files['status_ALL.txt']||'');const ag=ageText(a.head);
+  const el=$('#accAge');el.textContent=ag.txt||(configured()?'табло ещё не приходило':'');el.className='age'+(ag.old?' old':'');
+  const t=a.total;const acc=a.acc;
+  const cells=[['Баланс',acc['баланс']],['Эквити',acc['эквити']],['Плавающий',t?t.flt:undefined],['Сегодня',t?t.today:undefined],['Неделя',t?t.week:undefined],['Месяц',t?t.month:undefined],['Всего',t?t.net:undefined],['Свободно',acc['свободно']]];
+  $('#accSum').innerHTML=cells.map(([k,v],i)=>`<div><b>${k}</b><span class="${i>=2&&i<=6?cls(v):''}">${v===undefined?'—':(i>=2&&i<=6?fmt(v):(+v).toFixed(2))}</span></div>`).join('');
+}
+function seg(cur,onPick,extra){const s=document.createElement('div');s.className='seg';
+  for(const st of STATE_WORDS){const b=document.createElement('button');b.className=st;b.textContent=st.toUpperCase();b.setAttribute('aria-pressed',String(cur===st));
+    b.onclick=()=>{if(st==='flat'&&cur!=='flat')confirmFlat(extra||'бота',()=>onPick(st));else onPick(st);};s.appendChild(b);}
+  return s;}
+function stepper(val,spec,onChange){const d=document.createElement('div');d.className='stp';
+  const minus=document.createElement('button');minus.textContent='−';const inp=document.createElement('input');inp.type='number';inp.step=spec.step;inp.min=spec.min;inp.inputMode='decimal';inp.value=val===''?'':val;
+  const plus=document.createElement('button');plus.textContent='+';
+  const fix=v=>{v=Math.max(spec.min,Math.round(v/spec.step)*spec.step);return v.toFixed(spec.dec);};
+  minus.onclick=()=>{inp.value=fix((+inp.value||spec.min)-spec.step);onChange(inp.value);};
+  plus.onclick=()=>{inp.value=fix((+inp.value||0)+spec.step);onChange(inp.value);};
+  inp.onchange=()=>{if(inp.value==='')onChange('');else{inp.value=fix(+inp.value);onChange(inp.value);}};
+  d.append(minus,inp,plus);return d;}
+function selectCtl(val,spec,onChange){const s=document.createElement('select');
+  const o0=document.createElement('option');o0.value='';o0.textContent='— как в сете —';s.appendChild(o0);
+  for(const o of spec.opts){const op=document.createElement('option');op.value=o;op.textContent=o;s.appendChild(op);}
+  s.value=spec.opts.includes(val)?val:'';s.onchange=()=>onChange(s.value);return s;}
+function fld(label,ctl,hint){const f=document.createElement('div');f.className='fld';const l=document.createElement('label');l.textContent=label;f.append(l,ctl);if(hint){const h=document.createElement('span');h.className='small';h.textContent=hint;f.appendChild(h);}return f;}
+function statGrid(st){if(!st)return '';
+  return `<div class="stats"><div><b>сегодня</b><span class="${cls(st.today)}">${fmt(st.today)}</span></div><div><b>неделя</b><span class="${cls(st.week)}">${fmt(st.week)}</span></div><div><b>месяц</b><span class="${cls(st.month)}">${fmt(st.month)}</span></div><div><b>всего</b><span class="${cls(st.net)}">${fmt(st.net)}</span></div><div><b>сделок</b><span>${st.trades}</span></div><div><b>win</b><span>${st.win}%</span></div><div><b>PF</b><span>${st.pf.toFixed(2)}</span></div><div><b>maxDD</b><span>${st.dd.toFixed(2)}</span></div><div><b>плав.</b><span class="${cls(st.flt)}">${fmt(st.flt)}</span></div></div>`;}
+function changedKeys(){return new Set(diff(base,model).map(d=>d.key.toUpperCase()));}
+
+function renderAll(){
+  const all=findE(model,'ALL')||tmpE('ALL','on');const row=$('#allRow');row.replaceChildren();
+  const chg=changedKeys();
+  row.appendChild(seg(all.state||'on',st=>{L(all).state=st;renderBar();renderAll();},'ВСЕХ ботов'));
+  const p=document.createElement('span');p.className='pill '+(all.state||'on')+(chg.has('ALL')?' chg':'');p.textContent=chg.has('ALL')?'изменено, не отправлено':'ALL='+(all.state||'on');row.appendChild(p);
+  const eq=findE(model,'EQUITY_FLOOR')||tmpE('EQUITY_FLOOR','0');const inp=$('#eqf');inp.value=eq.plain;inp.onchange=()=>{L(eq).plain=String(Math.max(0,+inp.value||0));renderBar();};
+}
+function botCard(e){
+  const f=FAM[e.key]||FAM[Object.keys(FAM).find(k=>k.toUpperCase()===e.ku)]||{title:e.key,sub:'',opts:['lot']};
+  const chg=changedKeys();const st=parseBotStatus(files['status_'+e.key+'.txt']||files['status_'+f.title+'.txt']||'');
+  const s=document.createElement('section');s.className='card';
+  const h=document.createElement('h2');h.innerHTML=`${esc(f.title)} <span class="sub">${esc(f.sub)}</span>`;
+  const pill=document.createElement('span');pill.className='pill '+(e.state||'on')+(chg.has(e.ku)?' chg':'');pill.textContent=chg.has(e.ku)?'изменено, не отправлено':(e.state||'on').toUpperCase();h.appendChild(pill);
+  const ag=ageText(st.head);if(ag.txt){const a=document.createElement('span');a.className='age'+(ag.old?' old':'');a.textContent=ag.txt;h.appendChild(a);}
+  s.appendChild(h);
+  const r1=document.createElement('div');r1.className='row';r1.appendChild(seg(e.state||'on',v=>{L(e).state=v;renderBots();renderBar();},f.title));
+  for(const w of f.opts){const spec=OPT[w];const cur=getOpt(e,w);
+    const ctl=spec.t==='num'?stepper(cur,spec,v=>{setOpt(L(e),w,v);renderBar();markChanged(s,e);}):selectCtl(cur,spec,v=>{setOpt(L(e),w,v);renderBar();markChanged(s,e);});
+    r1.appendChild(fld(spec.label,ctl,spec.hint));}
+  s.appendChild(r1);
+  if(st.state){const l=document.createElement('div');l.className='line';l.innerHTML='<strong>бот сообщает:</strong> '+esc(st.state);s.appendChild(l);}
+  if(st.today){const l=document.createElement('div');l.className='line';l.innerHTML='<strong>сегодня:</strong> '+esc(st.today);s.appendChild(l);}
+  for(const o of st.other){const l=document.createElement('div');l.className='line';l.textContent=o;s.appendChild(l);}
+  if(st.stat){const d=document.createElement('div');d.innerHTML=statGrid(st.stat);s.appendChild(d.firstChild);}
+  return s;}
+function markChanged(card,e){const p=card.querySelector('h2 .pill');const chg=changedKeys();p.className='pill '+(e.state||'on')+(chg.has(e.ku)?' chg':'');p.textContent=chg.has(e.ku)?'изменено, не отправлено':(e.state||'on').toUpperCase();}
+function parkCard(e){
+  const f=FAM.PARK;const chg=changedKeys();const ps=parseParkStatus(files['status_PARK.txt']||'');
+  const s=document.createElement('section');s.className='card';
+  const h=document.createElement('h2');h.innerHTML=`${esc(f.title)} <span class="sub">${esc(f.sub)}</span>`;
+  const pill=document.createElement('span');pill.className='pill '+(e.state||'on')+(chg.has('PARK')?' chg':'');pill.textContent=chg.has('PARK')?'изменено, не отправлено':(e.state||'on').toUpperCase();h.appendChild(pill);
+  const ag=ageText(ps.head);if(ag.txt){const a=document.createElement('span');a.className='age'+(ag.old?' old':'');a.textContent=ag.txt;h.appendChild(a);}
+  s.appendChild(h);
+  const r1=document.createElement('div');r1.className='row';r1.appendChild(seg(e.state||'on',v=>{L(e).state=v;renderBots();renderBar();},'ВСЕГО парка'));
+  r1.appendChild(fld(OPT.mult.label,stepper(getOpt(e,'mult'),OPT.mult,v=>{setOpt(L(e),'mult',v);renderBar();markChanged(s,e);}),'1.0 = как в сете'));
+  s.appendChild(r1);
+  if(ps.head){const l=document.createElement('div');l.className='line';l.innerHTML='<strong>парк сообщает:</strong> '+esc(ps.head.replace(/^PARK\s+\S+\s+\S+ \S+ сервера ·\s*/,''));s.appendChild(l);}
+  // оверлеи
+  const ov=document.createElement('div');ov.className='row';
+  for(const [k,label] of Object.entries(OVERLAYS)){const oe=findE(model,'PARK.'+k);const b=document.createElement('button');b.className='tgl';
+    const on=oe?(oe.state||'on')==='on':null;b.setAttribute('aria-pressed',String(on===true));b.textContent=label+(oe?(on?' · вкл':' · выкл'):' · как в сете');
+    b.onclick=()=>{const x=ensureE(model,'PARK.'+k,'on');x.state=(x.state||'on')==='on'?'off':'on';renderBots();renderBar();};ov.appendChild(b);}
+  s.appendChild(ov);
+  // модули
+  const mods=document.createElement('div');mods.className='mods';
+  const statBy=Object.fromEntries(ps.mods.map(m=>[m.name.toUpperCase(),m]));
+  const modEntries=model.filter(x=>x.key&&x.ku.startsWith('PARK.')&&!OVERLAYS[x.key.slice(5)]);
+  for(const me of modEntries){const nm=me.key.slice(5);const ms=statBy[nm.toUpperCase()];
+    const d=document.createElement('div');d.className='mod';
+    const n=document.createElement('div');n.className='nm';
+    n.innerHTML=`${esc(nm)} ${chg.has(me.ku)?'<span class="pill chg">изм.</span>':''}${ms?`<small>сегодня <span class="${cls(ms.today)}">${fmt(ms.today)}</span> · мес <span class="${cls(ms.month)}">${fmt(ms.month)}</span> · всего <span class="${cls(ms.net)}">${fmt(ms.net)}</span> · сд ${ms.trades} · PF ${ms.pf.toFixed(2)}${ms.flt?` · плав <span class="${cls(ms.flt)}">${fmt(ms.flt)}</span>`:''}${!ms.en?' · <span class="neg">в сете выключен</span>':''}</small>`:''}`;
+    const c=document.createElement('div');c.className='ctl';
+    c.appendChild(seg(me.state||'on',v=>{me.state=v;renderBots();renderBar();},'модуля '+nm));
+    c.appendChild(stepper(getOpt(me,'lot'),OPT.lot,v=>{setOpt(me,'lot',v);renderBar();}));
+    d.append(n,c);
+    // тюнинг
+    const tun=document.createElement('div');tun.className='tun';
+    for(const p of me.pairs.filter(p=>p.w.toLowerCase()!=='lot')){const ch=document.createElement('span');ch.className='chip';ch.textContent=p.w+' '+p.v;
+      const x=document.createElement('button');x.textContent='×';x.title='убрать (вернуть значение сета)';x.onclick=()=>{setOpt(me,p.w,'');renderBots();renderBar();};ch.appendChild(x);tun.appendChild(ch);}
+    const sel=document.createElement('select');const o0=document.createElement('option');o0.value='';o0.textContent='+ тюнинг…';sel.appendChild(o0);
+    for(const t of TUN_NAMES){if(getOpt(me,t)!=='')continue;const o=document.createElement('option');o.value=t;o.textContent=t;sel.appendChild(o);}
+    const val=document.createElement('input');val.type='number';val.step='any';val.placeholder='значение';val.inputMode='decimal';val.hidden=true;
+    const ok=document.createElement('button');ok.textContent='ок';ok.hidden=true;
+    sel.onchange=()=>{val.hidden=ok.hidden=!sel.value;if(sel.value)val.focus();};
+    ok.onclick=()=>{if(sel.value&&val.value!==''){setOpt(me,sel.value,val.value);renderBots();renderBar();}};
+    tun.append(sel,val,ok);d.appendChild(tun);mods.appendChild(d);}
+  s.appendChild(mods);
+  if(ps.total){const d=document.createElement('div');d.innerHTML=statGrid(ps.total);s.appendChild(d.firstChild);}
+  return s;}
+function renderBots(){
+  const host=$('#bots');host.replaceChildren();
+  const skip=new Set(['ALL','EQUITY_FLOOR','REPORT']);
+  for(const e of model){if(!e.key||skip.has(e.ku)||e.ku.startsWith('PARK.'))continue;
+    host.appendChild(e.ku==='PARK'?parkCard(e):botCard(e));}
+  // боты из таблицы, для которых строки в файле нет (нет строки = on)
+  for(const k of Object.keys(FAM)){if(!findE(model,k.toUpperCase())){const e=tmpE(k,'on');host.appendChild(k==='PARK'?parkCard(e):botCard(e));}}
+}
+function renderBoard(){
+  const a=parseAllStatus(files['status_ALL.txt']||'');const ag=ageText(a.head);
+  const el=$('#allAge');el.textContent=ag.txt;el.className='age'+(ag.old?' old':'');
+  const th='<tr><th>бот</th><th>сегодня</th><th>неделя</th><th>месяц</th><th>всего</th><th>сд</th><th>win</th><th>PF</th><th>maxDD</th><th>плав.</th><th>последняя</th></tr>';
+  const tr=(st,tot)=>`<tr${tot?' class="tot"':''}><td>${esc(st.name)}</td><td class="${cls(st.today)}">${fmt(st.today)}</td><td class="${cls(st.week)}">${fmt(st.week)}</td><td class="${cls(st.month)}">${fmt(st.month)}</td><td class="${cls(st.net)}">${fmt(st.net)}</td><td>${st.trades}</td><td>${st.win}%</td><td>${st.pf.toFixed(2)}</td><td>${st.dd.toFixed(2)}</td><td class="${cls(st.flt)}">${fmt(st.flt)}</td><td>${esc(st.last)}</td></tr>`;
+  $('#tbAll').innerHTML=a.rows.length?th+a.rows.map(r=>tr(r)).join('')+(a.total?tr(a.total,true):''):'<tr><td class="mute">файл status_ALL.txt ещё не приходил — его пишет zMultiEngine (нужен токен в ZR_Token парка)</td></tr>';
+  const p=parseParkStatus(files['status_PARK.txt']||'');const pg=ageText(p.head);
+  const pe=$('#parkAge');pe.textContent=pg.txt;pe.className='age'+(pg.old?' old':'');
+  $('#parkHead').textContent=p.head?p.head.replace(/^PARK\s+/,''):'';
+  const th2='<tr><th>модуль</th><th>сет</th><th>пульт</th><th>лот</th><th>сегодня</th><th>неделя</th><th>месяц</th><th>всего</th><th>сд</th><th>win</th><th>PF</th><th>maxDD</th><th>плав.</th></tr>';
+  $('#tbPark').innerHTML=p.mods.length?th2+p.mods.map(m=>`<tr><td>${esc(m.name)}</td><td>${m.en?'вкл':'<span class="neg">выкл</span>'}</td><td class="${m.zr==='on'?'pos':'neg'}">${m.zr}</td><td>${m.lot.toFixed(2)}</td><td class="${cls(m.today)}">${fmt(m.today)}</td><td class="${cls(m.week)}">${fmt(m.week)}</td><td class="${cls(m.month)}">${fmt(m.month)}</td><td class="${cls(m.net)}">${fmt(m.net)}</td><td>${m.trades}</td><td>${m.win}%</td><td>${m.pf.toFixed(2)}</td><td>${m.dd.toFixed(2)}</td><td class="${cls(m.flt)}">${fmt(m.flt)}</td></tr>`).join('')+(p.total?`<tr class="tot"><td>${esc(p.total.name)}</td><td></td><td></td><td></td><td class="${cls(p.total.today)}">${fmt(p.total.today)}</td><td class="${cls(p.total.week)}">${fmt(p.total.week)}</td><td class="${cls(p.total.month)}">${fmt(p.total.month)}</td><td class="${cls(p.total.net)}">${fmt(p.total.net)}</td><td>${p.total.trades}</td><td>${p.total.win}%</td><td>${p.total.pf.toFixed(2)}</td><td>${p.total.dd.toFixed(2)}</td><td class="${cls(p.total.flt)}">${fmt(p.total.flt)}</td></tr>`:''):'<tr><td class="mute">файл status_PARK.txt ещё не приходил</td></tr>';
+  const bl=$('#botLines');bl.replaceChildren();
+  for(const [n,c] of Object.entries(files).sort()){if(!/^status_/.test(n)||/status_(ALL|PARK)\.txt/.test(n))continue;
+    const d=document.createElement('div');d.className='line';const ls=c.split(/\r?\n/).filter(x=>x.trim());
+    d.innerHTML=`<strong>${esc(n.replace(/^status_|\.txt$/g,''))}</strong> · ${esc(ls[0]||'')}<br>${ls.slice(1).filter(l=>!parseStat(l)).map(esc).join('<br>')}`;bl.appendChild(d);}
+  if(!bl.children.length)bl.innerHTML='<div class="line">строк ботов ещё нет</div>';
+}
+function renderRaw(){const ta=$('#rawPark');if(document.activeElement!==ta)ta.value=serPark(model);
+  const rs=$('#rawStatus');rs.replaceChildren();
+  for(const [n,c] of Object.entries(files).sort()){if(!/^status_/.test(n))continue;const d=document.createElement('details');const s=document.createElement('summary');s.textContent=n;const p=document.createElement('pre');p.className='raw';p.textContent=c;d.append(s,p);rs.appendChild(d);}
+  if(!rs.children.length)rs.innerHTML='<div class="line">файлов status_*.txt в gist пока нет — их создают боты (нужен ZR_Token)</div>';}
+function renderBar(){const d=diff(base,model);const bar=$('#bar');bar.hidden=!d.length;if(!d.length)return;
+  $('#barN').textContent=`Изменений: ${d.length}`;$('#barL').textContent=d.map(x=>x.txt).join(' · ');}
+
+// ---------- отправка ----------
+function modal(html,acts){const h=$('#modalHost');const m=document.createElement('div');m.className='modal';const b=document.createElement('div');b.className='box';b.innerHTML=html;
+  const a=document.createElement('div');a.className='acts';for(const [label,cl,fn] of acts){const bt=document.createElement('button');bt.textContent=label;if(cl)bt.className=cl;bt.onclick=()=>{if(fn)fn();h.replaceChildren();};a.appendChild(bt);}
+  b.appendChild(a);m.appendChild(b);m.onclick=ev=>{if(ev.target===m)h.replaceChildren();};h.replaceChildren(m);}
+function confirmFlat(who,fn){modal(`<h3>FLAT для ${esc(who)}</h3><p>Бот закроет все свои открытые позиции и отложенные ордера по рынку и не будет входить, пока стоит flat. Вернуть — поставить on.</p><p class="small">Исполнится после отправки, в течение 1–5 минут. Событийный бот внутри окна события выполнит flat после выхода из позиции.</p>`,
+  [['Отмена'],['Да, FLAT','btn-flat',fn]]);}
+async function send(){
+  if(busy)return;const d=diff(base,model);if(!d.length)return;
+  if(!configured()){modal('<h3>Демо-режим</h3><p>Пульт ещё не подключён к вашему gist. Откройте настройки ⚙ и введите адрес gist и токен.</p>',[['Понятно']]);return;}
+  const danger=d.some(x=>x.state==='flat'||x.key.toUpperCase()==='EQUITY_FLOOR');
+  const go=async()=>{busy=true;setDot('busy','отправляю…');
+    try{const g=await gistGet();const fresh=parsePark(g.files['park.txt']||'');
+      for(const x of d){const e=ensureE(fresh,x.key);if(x.state!==undefined)e.state=x.state;if(x.plain!==undefined)e.plain=x.plain;for(const [w,v] of Object.entries(x.opts||{}))setOpt(e,w,v);}
+      const text=serPark(fresh);await gistPatch({'park.txt':text});
+      files=g.files;files['park.txt']=text;rawText=text;base=parsePark(text);model=clone(base);render();
+      setDot('ok','отправлено '+new Date().toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'}));toast('Отправлено. Боты прочитают в течение 1–5 минут.',4000);
+    }catch(e){setDot('bad','ошибка');notice('Не отправлено: '+(e.message||e),'err');}
+    finally{busy=false;}};
+  modal(`<h3>Отправить ${d.length} ${d.length===1?'изменение':d.length<5?'изменения':'изменений'}</h3><ul>${d.map(x=>'<li>'+esc(x.txt)+'</li>').join('')}</ul>${danger?'<p class="small" style="color:var(--flat)">Среди изменений есть FLAT или порог эквити — позиции могут быть закрыты по рынку.</p>':''}`,
+    [['Отмена'],['Отправить',danger?'btn-flat':'btn-acc',go]]);}
+async function sendRaw(){
+  if(!configured()){modal('<h3>Демо-режим</h3><p>Подключите свой gist в настройках ⚙.</p>',[['Понятно']]);return;}
+  const text=$('#rawPark').value;
+  modal('<h3>Отправить текст park.txt как есть?</h3><p class="small">Файл будет заменён целиком. Боты прочитают его в течение 1–5 минут.</p>',[['Отмена'],['Отправить','btn-acc',async()=>{
+    busy=true;setDot('busy','отправляю…');try{await gistPatch({'park.txt':text});busy=false;await load();toast('Отправлено');}catch(e){busy=false;setDot('bad','ошибка');notice('Не отправлено: '+(e.message||e),'err');}}]]);}
+
+// ---------- настройки ----------
+function openSettings(){
+  modal(`<h3>Подключение к gist</h3><div class="set">
+  <label for="sGist">Адрес gist (страница или Raw) или его id</label><input type="text" id="sGist" autocomplete="off" autocapitalize="off" value="${esc(cfg.gist)}" placeholder="https://gist.github.com/имя/0123abcd…">
+  <div class="hint">Тот же gist, где лежит park.txt. Достаточно вставить любую ссылку на него.</div>
+  <label for="sTok">Токен GitHub (classic, только право «gist»)</label><input type="password" id="sTok" autocomplete="off" value="${esc(cfg.token)}" placeholder="ghp_…">
+  <div class="hint">Хранится только в этом браузере. <button type="button" id="sShow" style="padding:2px 8px;font-size:12px">показать</button></div>
+  <label for="sMin">Период табло у ботов (ZR_StatusMin), мин</label><input type="number" id="sMin" min="1" step="1" value="${cfg.statusMin}" style="width:6em">
+  <div class="hint">Табло старше трёх периодов подсвечивается красным: бот или VPS не пишет статус.</div>
+  <div class="hint" style="margin-top:12px">Страница ничего не отправляет никуда, кроме api.github.com. Токен с правом «gist» не имеет доступа к торговому счёту.</div>
+  </div>`,[['Забыть токен','',()=>{cfg.token='';LS.del('zr.token');toast('Токен удалён из браузера');schedule();load();}],['Отмена'],['Проверить и сохранить','btn-acc',()=>{
+    cfg.gist=$('#sGist').value.trim();cfg.token=$('#sTok').value.trim();cfg.statusMin=Math.max(1,+($('#sMin').value||10));
+    LS.set('zr.gist',cfg.gist);LS.set('zr.token',cfg.token);LS.set('zr.statusMin',String(cfg.statusMin));
+    if(!configured()){setTimeout(()=>notice('Не похоже на адрес gist: в нём должен быть id из 32 символов.','warn'),0);return;}
+    schedule();load(true);}]]);
+  const sh=$('#sShow');if(sh)sh.onclick=()=>{const t=$('#sTok');t.type=t.type==='password'?'text':'password';sh.textContent=t.type==='password'?'показать':'скрыть';};
+}
+
+// ---------- события ----------
+$('#bRefresh').onclick=()=>load(true);
+$('#bSettings').onclick=openSettings;
+$('#bSend').onclick=send;
+$('#bDiscard').onclick=()=>{model=clone(base);render();toast('Изменения отменены');};
+$('#bReport').onclick=()=>{const r=ensureE(model,'REPORT','1');r.plain=String(Math.floor(Date.now()/60000));r.pairs=[];renderBar();toast('Добавлено в изменения — нажмите «Отправить»');};
+$('#bRawSend').onclick=sendRaw;
+$('#bRawReset').onclick=()=>{$('#rawPark').value=rawText;toast('Текст возвращён к серверному');};
+document.querySelectorAll('nav.tabs button').forEach(b=>b.onclick=()=>{document.querySelectorAll('nav.tabs button').forEach(x=>x.setAttribute('aria-selected',String(x===b)));
+  for(const t of ['ctl','tab','raw'])$('#tab-'+t).hidden=b.dataset.tab!==t;LS.set('zr.tab',b.dataset.tab);});
+(()=>{const t=LS.get('zr.tab');if(t&&t!=='ctl'){const b=document.querySelector(`nav.tabs button[data-tab="${t}"]`);if(b)b.click();}})();
+function schedule(){if(timer)clearInterval(timer);timer=setInterval(()=>{if(document.visibilityState==='visible'&&!pendingCount())load(false);},cfg.token?60000:300000);}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&!pendingCount())load(false);});
+load(false).then(()=>{schedule();if(!configured())notice('Показан образец данных. Нажмите ⚙ и подключите свой gist — пульт заработает по-настоящему.','warn');});
+</script>
+<!--ARTIFACT-END-->
+</body>
+</html>
